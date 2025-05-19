@@ -79,3 +79,15 @@ while True:
 cap.release()
 out.release()
 print(f"\n✅ Vidéo exportée : {output_video_path}\n")
+
+# À la fin de ton script Python (après avoir calculé x1, y1, x2, y2)
+import json
+
+coords = {
+    "x": int(x1),
+    "y": int(y1),
+    "width": int(x2 - x1),
+    "height": int(y2 - y1)
+}
+with open("public/blur_box.json", "w") as f:
+    json.dump(coords, f)
