@@ -1,0 +1,17 @@
+# Node/Remotion
+node_modules/
+public/*.mp4
+public/*.wav
+public/*.json
+*.pyc
+__pycache__/
+*.log
+
+# VSCode & Python
+.vscode/
+.env
+*.egg-info/
+
+# Système
+.DS_Store
+Thumbs.db
