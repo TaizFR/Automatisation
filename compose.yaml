@@ -2,5 +2,11 @@ services:
   remotion-app:
     build:
       context: .
-      dockerfile: ./Dockerfile
-    
+      dockerfile: ./remotion/Dockerfile
+    depends_on:
+      - backend
+  
+  backend:
+    build:
+      context: .
+      dockerfile: ./backend/Dockerfile

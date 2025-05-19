@@ -1,6 +1,5 @@
 import cv2
 import pytesseract
-import numpy as np
 
 input_video_path = "public/sample-video.mp4"
 output_video_path = "public/sample-video-blurred.mp4"

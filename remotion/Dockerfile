@@ -18,8 +18,8 @@ RUN apt install -y \
   libcups2
 
 COPY package*.json tsconfig.json* remotion.config.* ./
-COPY src ./src
-COPY public ./public
+COPY ./remotion/src ./src
+COPY ./remotion/public ./public
 RUN npm ci
 RUN npx remotion browser ensure
 COPY render.mjs render.mjs
