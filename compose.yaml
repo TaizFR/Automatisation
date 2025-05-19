@@ -1,0 +1,6 @@
+services:
+  remotion-app:
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+    
