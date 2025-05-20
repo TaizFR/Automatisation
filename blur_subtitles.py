@@ -1,6 +1,9 @@
 import cv2
 import pytesseract
 import numpy as np
+import json
+import os
+import subprocess
 
 input_video_path = "public/sample-video.mp4"
 output_video_path = "public/sample-video-blurred.mp4"
@@ -11,13 +14,10 @@ width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
 height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
-num_samples = 18  # Plus tu mets d'échantillons, mieux tu couvres les cas bizarres
+num_samples = 80
 sampled_indices = [int(i * frame_count / num_samples) for i in range(num_samples)]
 
-all_lefts = []
-all_rights = []
-all_tops = []
-all_bottoms = []
+heatmap = np.zeros((height, width), dtype=np.float32)
 
 for frame_idx in sampled_indices:
     cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
@@ -29,65 +29,101 @@ for frame_idx in sampled_indices:
         results = pytesseract.image_to_data(gray, output_type=pytesseract.Output.DICT, lang=lang)
         for i in range(len(results["text"])):
             text = results["text"][i]
-            conf_str = results["conf"][i]
             try:
-                conf = float(conf_str)
+                conf = float(results["conf"][i])
             except:
                 conf = 0
             w = results["width"][i]
             h = results["height"][i]
-            if conf > 30 and text.strip() != "" and w > 25:
+            if conf > 30 and text.strip() != "" and w > 20:
                 x = results["left"][i]
                 y = results["top"][i]
-                if y > height * 0.5:
-                    all_lefts.append(x)
-                    all_rights.append(x + w)
-                    all_tops.append(y)
-                    all_bottoms.append(y + h)
+                if y > height * 0.6:
+                    heatmap[y:y+h, x:x+w] += 1
+
 cap.release()
 
-# Marge de sécurité pour ne JAMAIS couper le texte
-padding_x = 45
-padding_y = 15
-
-if all_lefts and all_rights and all_tops and all_bottoms:
-    x1 = max(0, min(all_lefts) - padding_x)
-    x2 = min(width, max(all_rights) + padding_x)
-    y1 = max(0, min(all_tops) - padding_y)
-    y2 = min(height, max(all_bottoms) + padding_y)
+max_heat = heatmap.max()
+if max_heat == 0:
+    x, y, w, h = int(width*0.2), int(height*0.75), int(width*0.6), int(height*0.1)
 else:
-    y1 = int(height * 0.75)
-    y2 = int(height * 0.82)
-    x1 = int(width * 0.2)
-    x2 = int(width * 0.8)
+    thresh = max(2, max_heat * 0.4)
+    mask = (heatmap >= thresh).astype(np.uint8)
+    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    boxes = [cv2.boundingRect(c) for c in contours if cv2.contourArea(c) > 200]
 
-print(f"\n➡️ Rectangle flou ABSOLU : x1={x1}, y1={y1}, x2={x2}, y2={y2} ({x2-x1}x{y2-y1}px)\n")
+    if boxes:
+        min_x = min([box[0] for box in boxes])
+        min_y = min([box[1] for box in boxes])
+        max_x = max([box[0] + box[2] for box in boxes])
+        max_y = max([box[1] + box[3] for box in boxes])
+
+        # Marges à ajuster à ta convenance
+        extra_left = 215     # marge de sécurité à gauche
+        extra_right = 115    # marge de sécurité à droite
+        top_margin = 12
+        bottom_margin = 6
+
+        x = max(min_x - extra_left, 0)
+        y = max(min_y - top_margin, 0)
+        w = min((max_x - min_x) + extra_left + extra_right, width - x)
+        h = min((max_y - min_y) + top_margin + bottom_margin, height - y)
+    else:
+        x, y, w, h = int(width*0.2), int(height*0.75), int(width*0.6), int(height*0.1)
+
+with open("public/blur_box.json", "w") as f:
+    json.dump({"x": int(x), "y": int(y), "width": int(w), "height": int(h)}, f)
+
+cap = cv2.VideoCapture(input_video_path)
+ret, frame = cap.read()
+if ret:
+    cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
+    cv2.imwrite("public/debug_box.jpg", frame)
+cap.release()
 
 cap = cv2.VideoCapture(input_video_path)
 fps = cap.get(cv2.CAP_PROP_FPS)
 fourcc = cv2.VideoWriter_fourcc(*'mp4v')
 out = cv2.VideoWriter(output_video_path, fourcc, fps, (width, height))
-
 while True:
     ret, frame = cap.read()
     if not ret:
         break
-    sub_img = frame[y1:y2, x1:x2]
-    blurred = cv2.GaussianBlur(sub_img, (31, 31), 30)
-    frame[y1:y2, x1:x2] = blurred
+    sub_img = frame[y:y+h, x:x+w]
+    blurred = cv2.GaussianBlur(sub_img, (51, 51), 75)
+    frame[y:y+h, x:x+w] = blurred
     out.write(frame)
 cap.release()
 out.release()
-print(f"\n✅ Vidéo exportée : {output_video_path}\n")
 
-# À la fin de ton script Python (après avoir calculé x1, y1, x2, y2)
-import json
+print(f"✅ Rectangle auto détecté : x={x} y={y} w={w} h={h}")
 
-coords = {
-    "x": int(x1),
-    "y": int(y1),
-    "width": int(x2 - x1),
-    "height": int(y2 - y1)
-}
-with open("public/blur_box.json", "w") as f:
-    json.dump(coords, f)
+import os
+import subprocess
+
+# Nom du fichier d'entrée et de sortie
+input_file = "public/sample-video-blurred.mp4"
+output_file = "public/sample-video-blurred-fixed.mp4"
+
+def fix_video(input_path, output_path):
+    # Utilise FFmpeg pour réencoder la vidéo sans toucher à la qualité
+    cmd = [
+        "ffmpeg",
+        "-y",  # overwrite sans demander
+        "-i", input_path,
+        "-c:v", "libx264",  # H.264 pour la vidéo
+        "-c:a", "aac",      # AAC pour l'audio (optionnel)
+        "-movflags", "+faststart",  # permet une lecture directe en streaming/web
+        output_path
+    ]
+    print("Réencodage en cours...")
+    subprocess.run(cmd, check=True)
+    print("✅ Réencodage terminé :", output_path)
+
+if __name__ == "__main__":
+    if not os.path.exists(input_file):
+        print(f"❌ Fichier d'entrée introuvable : {input_file}")
+    else:
+        fix_video(input_file, output_file)
+
+

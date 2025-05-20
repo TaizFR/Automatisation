@@ -16,7 +16,7 @@ const container: React.CSSProperties = {
   justifyContent: "center",
   alignItems: "center",
   top: undefined,
-  bottom: 350,
+  bottom: 480,
   height: 150,
 };
 

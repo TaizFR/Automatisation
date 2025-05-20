@@ -43,7 +43,7 @@ export const TranslatedCaptions = () => {
           width: blurBox.width,
           height: blurBox.height,
           backdropFilter: "blur(16px)",
-          backgroundColor: "rgba(0,0,0,0.3)",
+          backgroundColor: "rgb(254, 157, 157)",
           zIndex: 1,
         }}
       />
@@ -73,7 +73,7 @@ export const TranslatedCaptions = () => {
               style={{
                 fontSize: 48,
                 color: "white",
-                background: "rgba(0,0,0,0.6)",
+                background: "rgb(254, 157, 157)",
                 borderRadius: 12,
                 padding: "10px 20px",
                 opacity,
